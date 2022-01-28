@@ -8,6 +8,7 @@
 
 source ~/.bashrc
 module load cudnn/8.1.1/cuda-11.2
+module load gcc
 conda activate rlmol
 
 srun python train_model.py
