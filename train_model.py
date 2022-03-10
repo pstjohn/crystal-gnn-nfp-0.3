@@ -4,11 +4,11 @@ import shutil
 from collections import Counter
 from pathlib import Path
 
-import nfp
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 import tensorflow_addons as tfa
+from nfp import EdgeUpdate, NodeUpdate
 from nfp.layers import RBFExpansion
 from nfp.preprocessing.crystal_preprocessor import PymatgenPreprocessor
 from sklearn.model_selection import train_test_split
@@ -17,14 +17,18 @@ from tqdm.auto import tqdm
 
 tqdm.pandas()
 
-inputs_dir = Path("/projects/rlmolecule/pstjohn/crystal_inputs/")
+inputs_dir = Path("outputs/20220309_volrelax")
+# can use run_id if testing different hyperparameters
+#run_id = 
+#model_dir = Path(inputs_dir, run_id)
+model_dir = inputs_dir
 
-data = pd.read_pickle(Path(inputs_dir, "20211227_all_data.p"))
+data = pd.read_pickle(Path(inputs_dir, "all_data.p"))
 preprocessor = PymatgenPreprocessor()
-preprocessor.from_json(Path(inputs_dir, "20211227_preprocessor.json"))
+preprocessor.from_json(Path(inputs_dir, "preprocessor.json"))
 
 train, valid = train_test_split(data, test_size=2000, random_state=1)
-valid, test = train_test_split(valid, test_size=0.5)
+valid, test = train_test_split(valid, test_size=0.5, random_state=2)
 
 
 def calculate_output_bias(train):
@@ -103,9 +107,9 @@ rbf_distance = RBFExpansion(
 bond_state = layers.Dense(embed_dimension)(rbf_distance)
 
 for _ in range(num_messages):
-    new_bond_state = nfp.EdgeUpdate()([atom_state, bond_state, connectivity])
+    new_bond_state = EdgeUpdate()([atom_state, bond_state, connectivity])
     bond_state = layers.Add()([bond_state, new_bond_state])
-    new_atom_state = nfp.NodeUpdate()([atom_state, bond_state, connectivity])
+    new_atom_state = NodeUpdate()([atom_state, bond_state, connectivity])
     atom_state = layers.Add()([atom_state, new_atom_state])
 
 # Reduce the atom state vector to a single energy prediction
@@ -142,19 +146,19 @@ optimizer = tfa.optimizers.AdamW(
 
 model.compile(loss="mae", optimizer=optimizer)
 
-model_name = "20211227_icsd_and_battery"
-
-if not os.path.exists(model_name):
-    os.makedirs(model_name)
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
 
 # Make a backup of the job submission script
-shutil.copy(__file__, model_name)
+dest_file = Path(model_dir, os.path.basename(__file__))
+if not dest_file.is_file() or Path(__file__) != dest_file:
+    shutil.copy(__file__, dest_file)
 
-filepath = model_name + "/best_model.hdf5"
+filepath = Path(model_dir, "best_model.hdf5")
 checkpoint = tf.keras.callbacks.ModelCheckpoint(
     filepath, save_best_only=True, verbose=0
 )
-csv_logger = tf.keras.callbacks.CSVLogger(model_name + "/log.csv")
+csv_logger = tf.keras.callbacks.CSVLogger(Path(model_dir, "log.csv"))
 
 if __name__ == "__main__":
     model.fit(
