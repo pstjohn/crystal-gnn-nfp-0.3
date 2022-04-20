@@ -3,6 +3,7 @@ import os
 import shutil
 from collections import Counter
 from pathlib import Path
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -17,22 +18,85 @@ from tqdm.auto import tqdm
 
 tqdm.pandas()
 
-inputs_dir = Path("outputs/20220309_volrelax_no_norm")
-# can use run_id if testing different hyperparameters
-#run_id = 
-#model_dir = Path(inputs_dir, run_id)
-model_dir = inputs_dir
 
-data = pd.read_pickle(Path(inputs_dir, "all_data.p"))
+parser = argparse.ArgumentParser(description='')
+parser.add_argument('--data-file', type=Path, help='The pickled file with processed input structures. preprocessor.json should be in the same folder')
+parser.add_argument('--out-dir', type=Path, help='Where to place the output files')
+args = parser.parse_args()
+
+#inputs_dir = Path("outputs/20220314_volunrelax_dls4")
+inputs_dir = args.data_file.parents[0]
+# can use run_id if testing different hyperparameters
+#model_dir = Path(inputs_dir, run_id)
+model_dir = args.out_dir
+
+
+#data = pd.read_pickle(Path(inputs_dir, "volunrelax_data.p"))
+data = pd.read_pickle(args.data_file)
 # limit to structures with energy in the range -10 to 10
-num_strcs = len(data)
-data = data[(data['energyperatom'] > -10) & (data['energyperatom'] < 10)]
-print(f"{num_strcs} structures reduced to {len(data)} after filtering to the energy range -10 to 10")
+#num_strcs = len(data)
+#data = data[(data['energyperatom'] > -10) & (data['energyperatom'] < 5)]
+#print(f"{num_strcs} structures reduced to {len(data)} after filtering to the energy range -10 to 5")
 preprocessor = PymatgenPreprocessor()
+#preprocessor.from_json(Path(inputs_dir, "preprocessor.json"))
+# TODO preprocessor should match the data files
+# preprocessor should be in the same dir as the data files
 preprocessor.from_json(Path(inputs_dir, "preprocessor.json"))
 
-train, valid = train_test_split(data, test_size=2000, random_state=1)
-valid, test = train_test_split(valid, test_size=0.5, random_state=2)
+
+def random_split_df(df, test_size=.05, random_state=None):
+    strc_ids = df.id.unique()
+    train, valid, test = random_split(
+        strc_ids, test_size=test_size, random_state=random_state)
+    train_df = df[df.id.isin(train)]
+    valid_df = df[df.id.isin(valid)]
+    test_df = df[df.id.isin(test)]
+
+    return train_df, valid_df, test_df
+
+
+def random_split(structure_ids, test_size=.05, random_state=None):
+    if test_size < 1:
+        test_size_perc = test_size
+        test_size = int(np.floor(len(structure_ids) * test_size))
+    else:
+        test_size_perc = test_size / float(len(structure_ids))
+    print(f"\tsplitting {len(structure_ids)} structures using test_size: {test_size_perc} ({test_size})")
+    valid_test_size = test_size*2
+    train, valid  = train_test_split(structure_ids, test_size=valid_test_size, random_state=random_state)
+    random_state2 = random_state + 1 if random_state else None
+    valid, test = train_test_split(valid, test_size=.5, random_state=random_state2)
+    return train, valid, test
+
+
+#train, valid = train_test_split(data, test_size=.1, random_state=1)
+#valid, test = train_test_split(valid, test_size=0.5, random_state=2)
+# rather than just split randomly, try leaving out the same decorated structures in the relaxed and unrelaxed sets
+relaxed_ids = data[data['data_type'] == 'battery_relaxed']['id']
+train_ids, valid_ids, test_ids = random_split(relaxed_ids,
+                                              test_size=.05,
+                                              random_state=1)
+batt_train = data[data.id.isin(train_ids)]
+batt_valid = data[data.id.isin(valid_ids)]
+batt_test = data[data.id.isin(test_ids)]
+print(f"{len(train_ids)}, {len(valid_ids)} train and valid ids after split")
+print(f"{len(batt_train)}, {len(batt_valid)} train and valid structures")
+
+# also split the ICSD structures
+icsd_train, icsd_valid, icsd_test = random_split_df(data[data['data_type'] == 'icsd'],
+                                                    test_size=0.05,
+                                                    random_state=1)
+print(f"{len(icsd_train)}, {len(icsd_valid)} train and valid icsd ids after split")
+
+train = pd.concat([batt_train, icsd_train])
+valid = pd.concat([batt_valid, icsd_valid])
+test = pd.concat([batt_test, icsd_test])
+print(f"{len(train)}, {len(valid)} train and valid structures overall")
+
+# write the ids to a file
+train[['id', 'data_type']].to_csv(Path(model_dir, 'train_ids.txt'), index=False)
+valid[['id', 'data_type']].to_csv(Path(model_dir, 'valid_ids.txt'), index=False)
+test[['id', 'data_type']].to_csv(Path(model_dir, 'test_ids.txt'), index=False)
 
 
 def calculate_output_bias(train):
