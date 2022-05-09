@@ -1,10 +1,10 @@
 conda_env="/projects/rlmolecule/jlaw/envs/crystals_nfp0_3"
-#run_id="20220314_volunrelax_dls1.5"
-#run_id="20220314_batt_icsd_and_volunrelax"
-#out_dir="outputs/$run_id"
-run_id="rel_unrel_split"
-base_dir="outputs/20220314_batt_icsd_and_volunrelax"
-out_dir="$base_dir/$run_id"
+if [ "$1" == "" ]; then
+    echo "Need to pass <out_dir> as first argument"
+    exit
+fi
+out_dir="$1"
+run_id=$(basename $out_dir)
 mkdir -p $out_dir
 
 echo "cp train_model.py $out_dir"
@@ -26,7 +26,7 @@ echo \"\$PWD\"
 echo \"Job started at: \$(date)\"
 srun python $out_dir/train_model.py \
      --out-dir=$out_dir \
-     --data-file=$base_dir/all_data.p
+     --data-file=$out_dir/all_data.p
 echo \"Job finished at: \$(date)\"
 """
      #--data-file=$out_dir/volunrelax_data.p

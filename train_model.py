@@ -33,10 +33,12 @@ model_dir = args.out_dir
 
 #data = pd.read_pickle(Path(inputs_dir, "volunrelax_data.p"))
 data = pd.read_pickle(args.data_file)
+# drop columns where inputs is null
+data = data[~data.inputs.isnull()]
 # limit to structures with energy in the range -10 to 10
-#num_strcs = len(data)
-#data = data[(data['energyperatom'] > -10) & (data['energyperatom'] < 5)]
-#print(f"{num_strcs} structures reduced to {len(data)} after filtering to the energy range -10 to 5")
+num_strcs = len(data)
+data = data[(data['energyperatom'] > -10) & (data['energyperatom'] < 5)]
+print(f"{num_strcs} structures reduced to {len(data)} after filtering to the energy range -10 to 5")
 preprocessor = PymatgenPreprocessor()
 #preprocessor.from_json(Path(inputs_dir, "preprocessor.json"))
 # TODO preprocessor should match the data files
