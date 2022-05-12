@@ -44,7 +44,7 @@ valid, test = train_test_split(
 
 def calculate_output_bias(train):
     """ We can get a reasonable guess for the output bias by just assuming the crystal's
-     energy is a linear sum over it's element types """
+     volume is a linear sum over it's element types """
     # This just converts to a count of each element by crystal
     site_counts = (
         train.inputs.progress_apply(lambda x: pd.Series(Counter(x["site"])))
@@ -52,20 +52,20 @@ def calculate_output_bias(train):
         .fillna(0)
     )
     # Linear regression assumes a sum, while we average over sites in the neural network
-    # Here, we make the regression target the total energy, not the site-averaged energy
+    # Here, we make the regression target the total volume, not the site-averaged volume
     num_sites = site_counts.sum(1)
-    total_energies = train["energyperatom"] * num_sites
+    total_volumes = train["volperatom"] * num_sites
 
     # Do the least-squares regression, and stack on zeros for the mask and unknown
     # tokens
-    output_bias = np.linalg.lstsq(site_counts, total_energies, rcond=None)[0]
+    output_bias = np.linalg.lstsq(site_counts, total_volumes, rcond=None)[0]
     return output_bias
 
 
 def build_dataset(split, batch_size):
     return (
         tf.data.Dataset.from_generator(
-            lambda: ((row.inputs, row.energyperatom) for _, row in split.iterrows()),
+            lambda: ((row.inputs, row.volperatom) for _, row in split.iterrows()),
             output_signature=(
                 preprocessor.output_signature,
                 tf.TensorSpec((), dtype=tf.float32),
@@ -125,7 +125,7 @@ for _ in range(num_messages):
     new_atom_state = nfp.NodeUpdate()([atom_state, bond_state, connectivity])
     atom_state = layers.Add()([atom_state, new_atom_state])
 
-# Reduce the atom state vector to a single energy prediction
+# Reduce the atom state vector to a single volume prediction
 atom_state = layers.Dense(
     1,
     name="site_energy_offset",
@@ -134,10 +134,10 @@ atom_state = layers.Dense(
     ),
 )(atom_state)
 
-# Add this 'offset' prediction to the learned mean energy for the given element type
+# Add this 'offset' prediction to the learned mean volume for the given element type
 atom_state = layers.Add(name="add_energy_offset")([atom_state, atom_mean])
 
-# Calculate a final mean energy per atom
+# Calculate a final mean volume per atom
 out = tf.keras.layers.GlobalAveragePooling1D()(atom_state)
 
 model = tf.keras.Model(input_tensors, [out])
@@ -159,7 +159,7 @@ optimizer = tfa.optimizers.AdamW(
 
 model.compile(loss="mae", optimizer=optimizer)
 
-model_name = "20220512_icsd_and_battery"
+model_name = "20220512_icsd_and_battery_vol"
 
 if not os.path.exists(model_name):
     os.makedirs(model_name)
@@ -198,7 +198,7 @@ if __name__ == "__main__":
 
     predictions = model.predict(dataset, verbose=1)
 
-    data["energy_predicted"] = predictions
+    data["volume_predicted"] = predictions
     data.drop("inputs", axis=1).to_csv(
-        model_name + "/predicted_energies.csv.gz", compression="gzip"
+        model_name + "/predicted_volumes.csv.gz", compression="gzip"
     )

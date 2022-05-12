@@ -1,65 +1,65 @@
-import gzip
-import json
-import re
+from distutils.log import warn
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from nfp.preprocessing.crystal_preprocessor import PymatgenPreprocessor
-from pymatgen import Structure
+from pymatgen.core.periodic_table import Element
 from tqdm.auto import tqdm
 
 tqdm.pandas()
 
-structure_dir = Path("/projects/rlmolecule/jlaw/crystal-gnn-fork/inputs/structures")
+structure_dir = Path("/projects/rlmolecule/jlaw/inputs/structures")
 inputs_dir = Path("/projects/rlmolecule/pstjohn/crystal_inputs/")
+volrelax_dir = Path("/projects/rlmolecule/pstjohn/volume_relaxation_outputs/")
 
 
-preprocessor = PymatgenPreprocessor()
+class AtomicNumberPreprocessor(PymatgenPreprocessor):
+    def __init__(self, max_atomic_num=83, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.site_tokenizer = lambda x: Element(x).Z
+        self._max_atomic_num = max_atomic_num
+
+    @property
+    def site_classes(self):
+        return self._max_atomic_num
 
 
-def preprocess_structure(structure):
-    scaled_struct = structure.copy()
-    inputs = preprocessor(scaled_struct, train=True)
+def preprocess_structure(row):
+    inputs = preprocessor(row.structure, train=True)
 
     # scale structures to a minimum of 1A interatomic distance
     min_distance = inputs["distance"].min()
     if np.isclose(min_distance, 0):
-        raise RuntimeError(f"Error with {structure}")
+        warn(f"Error with {row.id}")
+        return None
 
-    inputs["distance"] /= inputs["distance"].min()
-    return inputs
+    scale_factor = 1.0 / inputs["distance"].min()
+    inputs["distance"] *= scale_factor
 
+    radii = np.array([site.specie.atomic_radius for site in row.structure.sites])
+    r0 = radii[inputs["connectivity"][:, 0]]
+    r1 = radii[inputs["connectivity"][:, 1]]
+    d = inputs["distance"]
+    radii_scale_factor = (d / (r0 + r1)).min()
 
-def get_structures(filename):
-    with gzip.open(Path(structure_dir, filename), "r") as f:
-        for key, structure_dict in tqdm(json.loads(f.read().decode()).items()):
-            structure = Structure.from_dict(structure_dict)
-            inputs = preprocess_structure(structure)
-            yield {"id": key, "inputs": inputs}
-
-
-icsd_structures = pd.DataFrame(get_structures("icsd_structures.json.gz"))
-
-battery_structures_relaxed = pd.DataFrame(
-    get_structures("battery_relaxed_structures.json.gz")
-)
-
-calc_energy = pd.read_csv(
-    Path(inputs_dir, "20211223_deduped_energies_matminer_0.01.csv")
-)
-
-icsd_energy = pd.read_csv(Path(structure_dir, "icsd_energies.csv"))
-
-icsd_energy["comp_type"] = icsd_energy.composition.apply(
-    lambda comp: int(
-        "".join(str(x) for x in sorted((int(x) for x in re.findall("(\d+)", comp))))
+    return pd.Series(
+        {
+            "inputs": inputs,
+            "scale_factor": scale_factor,
+            "radii_scale_factor": radii_scale_factor,
+        }
     )
-)
 
-data = calc_energy.append(icsd_energy)
-structures = battery_structures_relaxed.append(icsd_structures)
 
-data = data.merge(structures, on="id", how="inner")
-data.to_pickle(Path(inputs_dir, "20211227_all_data.p"))
-preprocessor.to_json(Path(inputs_dir, "20211227_preprocessor.json"))
+preprocessor = AtomicNumberPreprocessor()
+
+if __name__ == "__main__":
+
+    data = pd.read_pickle(Path(inputs_dir, "20220510_all_structures.p")).reset_index(
+        drop=True
+    )
+    preprocessed = data.progress_apply(preprocess_structure, axis=1).dropna()
+    preprocessed = data.drop(["structure"], axis=1).join(preprocessed, how="right")
+
+    preprocessed.to_pickle(Path(inputs_dir, "20220511_scaled_inputs.p"))
