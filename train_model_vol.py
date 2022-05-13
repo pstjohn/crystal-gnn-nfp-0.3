@@ -20,6 +20,7 @@ tqdm.pandas()
 
 inputs_dir = Path("/projects/rlmolecule/pstjohn/crystal_inputs/")
 data = pd.read_pickle(Path(inputs_dir, "20220512_outliers_removed.p"))
+data = data[~data["hit_upper_bound"]]
 max_atomic_num = 84
 
 composition_set = data.composition.isin(

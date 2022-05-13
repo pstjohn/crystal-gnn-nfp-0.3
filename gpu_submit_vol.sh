@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=rlmolecule
 #SBATCH --time=2-00
-#SBATCH --job-name=crystal_gnn
+#SBATCH --job-name=vol_crystal_gnn
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:2
 #SBATCH --output=/scratch/pstjohn/gpu.%j.out
