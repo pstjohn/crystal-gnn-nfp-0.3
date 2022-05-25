@@ -153,3 +153,5 @@ cython_debug/
 .vscode/
 *.hdf5
 *.gz
+Untitled*.ipynb
+best_model/
