@@ -37,29 +37,17 @@ def preprocess_structure(row):
     scale_factor = 1.0 / inputs["distance"].min()
     inputs["distance"] *= scale_factor
 
-    radii = np.array([site.specie.atomic_radius for site in row.structure.sites])
-    r0 = radii[inputs["connectivity"][:, 0]]
-    r1 = radii[inputs["connectivity"][:, 1]]
-    d = inputs["distance"]
-    radii_scale_factor = (d / (r0 + r1)).min()
-
-    return pd.Series(
-        {
-            "inputs": inputs,
-            "scale_factor": scale_factor,
-            "radii_scale_factor": radii_scale_factor,
-        }
-    )
+    return pd.Series({
+        'inputs': inputs,
+        'scale_factor': scale_factor,
+    })
 
 
 preprocessor = AtomicNumberPreprocessor()
 
 if __name__ == "__main__":
 
-    data = pd.read_pickle(Path(inputs_dir, "20220510_all_structures.p")).reset_index(
-        drop=True
-    )
-    preprocessed = data.progress_apply(preprocess_structure, axis=1).dropna()
-    preprocessed = data.drop(["structure"], axis=1).join(preprocessed, how="right")
-
-    preprocessed.to_pickle(Path(inputs_dir, "20220511_scaled_inputs.p"))
+    data = pd.read_pickle(Path(inputs_dir, "20220603_all_structures.p"))
+    preprocessed = data.progress_apply(preprocess_structure, axis=1)
+    data = data.join(preprocessed, how='inner')
+    data.dropna(subset=['inputs']).drop(["structure"], axis=1).to_pickle(Path(inputs_dir, "20220603_scaled_inputs.p"))

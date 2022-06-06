@@ -19,7 +19,7 @@ from preprocess import preprocessor
 tqdm.pandas()
 
 inputs_dir = Path("/projects/rlmolecule/pstjohn/crystal_inputs/")
-data = pd.read_pickle(Path(inputs_dir, "20220512_outliers_removed.p"))
+data = pd.read_pickle(Path(inputs_dir, "20220603_outliers_removed.p"))
 max_atomic_num = 84
 
 composition_set = data.composition.isin(
@@ -159,7 +159,7 @@ optimizer = tfa.optimizers.AdamW(
 
 model.compile(loss="mae", optimizer=optimizer)
 
-model_name = "20220512_icsd_and_battery"
+model_name = "20220603_icsd_and_battery"
 
 if not os.path.exists(model_name):
     os.makedirs(model_name)

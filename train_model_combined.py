@@ -21,7 +21,7 @@ from preprocess import preprocessor
 tqdm.pandas()
 
 inputs_dir = Path("/projects/rlmolecule/pstjohn/crystal_inputs/")
-data = pd.read_pickle(Path(inputs_dir, "20220513_outliers_removed.p"))
+data = pd.read_pickle(Path(inputs_dir, "20220603_outliers_removed.p"))
 data.loc[data.hit_upper_bound, "volperatom"] = np.nan
 # data = data[~data["hit_upper_bound"]]
 
@@ -271,7 +271,7 @@ model.compile(
     optimizer=optimizer,
 )
 
-model_name = "20220512_icsd_and_battery_combined"
+model_name = "20220603_icsd_and_battery_combined"
 
 if not os.path.exists(model_name):
     os.makedirs(model_name)
