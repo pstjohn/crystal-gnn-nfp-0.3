@@ -44,12 +44,11 @@ train, valid = train_test_split(
     stratify=train_composition["type"],
 )
 valid, test = train_test_split(
-    train_composition,
+    valid,
     test_size=0.5,
     random_state=2,
-    stratify=train_composition["type"],
+    stratify=valid["type"],
 )
-
 
 # train = train.head(5000)
 # valid = valid.head(100)
@@ -271,7 +270,7 @@ model.compile(
     optimizer=optimizer,
 )
 
-model_name = "20220603_icsd_and_battery_combined"
+model_name = "20220607_icsd_and_battery_combined"
 
 if not os.path.exists(model_name):
     os.makedirs(model_name)

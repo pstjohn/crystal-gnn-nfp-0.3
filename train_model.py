@@ -35,12 +35,11 @@ train, valid = train_test_split(
     stratify=train_composition["type"],
 )
 valid, test = train_test_split(
-    train_composition,
+    valid,
     test_size=0.5,
     random_state=2,
-    stratify=train_composition["type"],
+    stratify=valid["type"],
 )
-
 
 def calculate_output_bias(train):
     """ We can get a reasonable guess for the output bias by just assuming the crystal's
@@ -159,7 +158,7 @@ optimizer = tfa.optimizers.AdamW(
 
 model.compile(loss="mae", optimizer=optimizer)
 
-model_name = "20220603_icsd_and_battery"
+model_name = "20220607_icsd_and_battery"
 
 if not os.path.exists(model_name):
     os.makedirs(model_name)
