@@ -129,7 +129,7 @@ if normalize_to_min_dist:
             preprocess_structure, **kwargs)
 else:
     # Make the volume predictions here
-    site_bias_file = "/projects/rlmolecule/pstjohn/crystal_inputs/site_volumes_from_icsd.csv"
+    site_bias_file = "inputs/site_volumes_from_icsd.csv"
     print(f"Reading {site_bias_file}")
     site_bias = pd.read_csv(site_bias_file,
                             index_col=0, squeeze=True)
